@@ -309,3 +309,64 @@ BEGIN
         RAISE NOTICE 'Tareas insertadas correctamente para el usuario: pablox (ID: %)', v_user_id;
     END IF;
 END $$;
+
+
+-- =========================
+-- Crear USER + 2 tareas
+-- =========================
+
+DO $$
+DECLARE
+  v_user_id INT;
+  v_sec1 INT;
+  v_sec2 INT;
+BEGIN
+  -- 1) Asegurar sectores base (si ya existen, no duplica)
+  INSERT INTO sector(name, location)
+  VALUES ('Centro Cívico', ST_SetSRID(ST_MakePoint(-70.6530, -33.4450), 4326))
+  ON CONFLICT (name) DO NOTHING;
+
+  INSERT INTO sector(name, location)
+  VALUES ('Providencia', ST_SetSRID(ST_MakePoint(-70.6300, -33.4300), 4326))
+  ON CONFLICT (name) DO NOTHING;
+
+  SELECT id INTO v_sec1 FROM sector WHERE name = 'Centro Cívico';
+  SELECT id INTO v_sec2 FROM sector WHERE name = 'Providencia';
+
+  -- 2) Insertar usuario normal (NO ADMIN)
+  INSERT INTO db_user (username, firstname, lastname, password, role, address, latitude, longitude, location)
+  VALUES (
+    'user_demo',
+    'Usuario',
+    'Demo',
+    -- password = 123 (bcrypt)
+    '$2b$12$ukfwbI0mWBrq5flw28KGaO9D/w6tnooZmjanBxvhLEn8AO6hyNpTi',
+    'USER',
+    'Providencia, Santiago',
+    -33.4308,
+    -70.6200,
+    ST_SetSRID(ST_MakePoint(-70.6200, -33.4308), 4326)
+  )
+  ON CONFLICT (username) DO UPDATE
+  SET firstname = EXCLUDED.firstname,
+      lastname  = EXCLUDED.lastname,
+      password  = EXCLUDED.password,
+      role      = EXCLUDED.role,
+      address   = EXCLUDED.address,
+      latitude  = EXCLUDED.latitude,
+      longitude = EXCLUDED.longitude,
+      location  = EXCLUDED.location
+  RETURNING user_id INTO v_user_id;
+
+  IF v_user_id IS NULL THEN
+    SELECT user_id INTO v_user_id FROM db_user WHERE username = 'user_demo';
+  END IF;
+
+  -- 3) Insertar 2 tareas para ese usuario
+  INSERT INTO task (title, description, due_date, finished, important, user_id, sector_id)
+  VALUES
+    ('Revisar luminarias', 'Inspección y reporte de luminarias del sector.', '2025-11-10', FALSE, TRUE,  v_user_id, v_sec1),
+    ('Limpieza plaza pequeña', 'Trabajo finalizado y registrado.',             '2025-10-15', TRUE,  FALSE, v_user_id, v_sec2);
+
+  RAISE NOTICE 'Usuario creado/actualizado: user_demo (ID=%) con 2 tareas.', v_user_id;
+END $$;

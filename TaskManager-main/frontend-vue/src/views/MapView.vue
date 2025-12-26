@@ -54,24 +54,27 @@ const userLocation = ref(null);
 
 const loadData = async () => {
   try {
-    const userId = Number(localStorage.getItem('userId'));
-
-    // Cargar tareas del usuario
+    // 1) Cargar tareas del usuario logueado
     const tasksRes = await taskService.getTasks();
     tasks.value = tasksRes;
 
-    // Cargar sectores
+    // 2) Cargar sectores
     const sectorsRes = await taskService.getSectors();
     sectors.value = sectorsRes;
 
-    // Cargar ubicación del usuario
-    const userRes = await api.get(`/api/admin/users/${userId}`);
-    if (userRes.data && userRes.data.latitude && userRes.data.longitude) {
-      userLocation.value = {
-        latitude: userRes.data.latitude,
-        longitude: userRes.data.longitude
-      };
+    // 3) Cargar ubicación del usuario autenticado (USER o ADMIN)
+    const userRes = await api.get('/api/users/me');
+
+    const lat = userRes.data?.latitude;
+    const lon = userRes.data?.longitude;
+
+    // OJO: no uses "if (lat && lon)" porque lat puede ser negativo y es válido igual.
+    if (lat !== null && lat !== undefined && lon !== null && lon !== undefined) {
+      userLocation.value = { latitude: lat, longitude: lon };
+    } else {
+      userLocation.value = null;
     }
+
   } catch (err) {
     console.error('Error cargando datos del mapa', err);
   } finally {
